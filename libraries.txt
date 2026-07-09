@@ -1,0 +1,85 @@
+# Arduino Libraries Required
+
+## Core Libraries (Usually Pre-installed)
+- SPI
+- Wire
+
+## Recommended Third-Party Libraries
+
+### Graphics & Display
+- Adafruit_GFX by Adafruit (Graphics library)
+- Adafruit_ILI9341 by Adafruit (For ILI9341 displays)
+  OR
+- TFT_ST7789 (For ST7789 displays)
+  OR
+- Similar library matching your display controller
+
+### Optional Monitoring
+- Adafruit_MAX31855 (if using Adafruit's driver instead of custom)
+- HX711 (for HX711 - different from HX710B, but similar)
+
+## Installation Instructions
+
+### Via Arduino IDE Library Manager:
+1. Open Arduino IDE
+2. Go to Sketch → Include Library → Manage Libraries
+3. Search for each library name below
+4. Click Install on the appropriate version
+
+### Manual Installation (if needed):
+1. Download library .zip file
+2. Sketch → Include Library → Add .ZIP Library
+3. Select the downloaded file
+
+## Library Installation Order
+
+1. Install Adafruit_GFX first (dependency)
+2. Install your display library (depends on Adafruit_GFX)
+3. Other libraries have no dependencies
+
+## Version Notes
+
+- This code was written with Arduino 1.8.x and IDE 2.x compatibility in mind
+- SPI and Wire libraries: Use default versions
+- Adafruit_GFX: Minimum 1.10.0+
+- Display libraries: Use latest stable version
+
+## Minimal Setup
+
+If you want to get started quickly without the display library:
+- Comment out display includes in espresso_nano.ino
+- Comment out display functions
+- Serial output will still work for debugging
+
+## Troubleshooting Library Issues
+
+**"Cannot find library" error:**
+- Verify library name spelling exactly
+- Check IDE Library Manager search
+- May need to restart IDE after installation
+
+**Compilation errors with libraries:**
+- Update all libraries to latest version
+- Check Arduino board type is set to "Arduino Nano"
+- Verify processor is "ATmega328P"
+
+**SPI conflicts:**
+- If multiple displays/sensors fail: check pin assignments
+- SPI hardware can only have one active chip select at a time
+- Verify CS pins are unique and not shared
+
+## Memory Considerations
+
+Arduino Nano has limited memory:
+- Flash: 32KB (program space)
+- RAM: 2KB (variables)
+
+Current code uses approximately:
+- Flash: ~12KB (depends on libraries included)
+- RAM: ~400 bytes (at runtime)
+
+If you hit memory limits:
+- Comment out unused display features
+- Use F() macro for string literals: Serial.println(F("text"));
+- Reduce buffer sizes in config.h
+- Remove debug Serial.print statements in production
