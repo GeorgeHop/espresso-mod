@@ -57,19 +57,19 @@ void updateDisplay(float currentTemp, float targetTemp,
     if (state == 2) {  // STATE_PRE_INFUSION
       Serial.println("\n━━ PRE-INFUSION ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       
-      Serial.print("TEMP     ");
+      Serial.print("♨ TEMP   ");
       Serial.print(currentTemp, 1);
       Serial.print("°C → ");
       Serial.print(targetTemp, 1);
       Serial.println("°C");
       
-      Serial.print("PRESSURE ");
+      Serial.print("⚙ PRESSURE ");
       Serial.print(currentPressure, 1);
       Serial.print("bar → ");
       Serial.print(PREINFUSION_PRESSURE, 1);
       Serial.println("bar (low)");
       
-      Serial.print("FLOW                    ");
+      Serial.print("~ FLOW                  ");
       Serial.print(flowRate, 1);
       Serial.println(" ml/s");
       
@@ -79,7 +79,7 @@ void updateDisplay(float currentTemp, float targetTemp,
       int preInfusionPercent = (preInfusionElapsed * 100) / PREINFUSION_TIME;
       preInfusionPercent = constrain(preInfusionPercent, 0, 100);
       
-      Serial.print("SOAK   [");
+      Serial.print("⏱ SOAK   [");
       for (int i = 0; i < 20; i++) {
         Serial.print(i < (preInfusionPercent / 5) ? "█" : "░");
       }
@@ -99,19 +99,19 @@ void updateDisplay(float currentTemp, float targetTemp,
       // Minimalistic clean layout with bold labels
       Serial.println("\n━━ BREWING ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       
-      Serial.print("TEMP     ");
+      Serial.print("♨ TEMP   ");
       Serial.print(currentTemp, 1);
       Serial.print("°C → ");
       Serial.print(targetTemp, 1);
       Serial.println("°C");
       
-      Serial.print("PRESSURE ");
+      Serial.print("⚙ PRESSURE ");
       Serial.print(currentPressure, 1);
       Serial.print("bar → ");
       Serial.print(targetPressure, 1);
       Serial.println("bar");
       
-      Serial.print("FLOW                    ");
+      Serial.print("~ FLOW                  ");
       Serial.print(flowRate, 1);
       Serial.println(" ml/s");
       
@@ -121,7 +121,7 @@ void updateDisplay(float currentTemp, float targetTemp,
       int timeProgress = (elapsedTime * 20) / max(targetTime, 1UL);
       int volumeProgress = (int)((currentVolume * 20) / max(targetVolume, 1.0f));
       
-      Serial.print("TIME   [");
+      Serial.print("⏱ TIME   [");
       for (int i = 0; i < 20; i++) {
         Serial.print(i < timeProgress ? "█" : "░");
       }
@@ -129,13 +129,13 @@ void updateDisplay(float currentTemp, float targetTemp,
       Serial.print((timeProgress * 5));
       Serial.println("%");
       
-      Serial.print("       ");
+      Serial.print("  ");
       Serial.print(elapsedTime);
       Serial.print("s / ");
       Serial.print(targetTime);
       Serial.println("s");
       
-      Serial.print("VOLUME [");
+      Serial.print("◆ VOLUME [");
       for (int i = 0; i < 20; i++) {
         Serial.print(i < volumeProgress ? "█" : "░");
       }
@@ -143,7 +143,7 @@ void updateDisplay(float currentTemp, float targetTemp,
       Serial.print((volumeProgress * 5));
       Serial.println("%");
       
-      Serial.print("       ");
+      Serial.print("  ");
       Serial.print(currentVolume, 1);
       Serial.print("ml / ");
       Serial.print(targetVolume, 1);
@@ -162,44 +162,35 @@ void displaySteam(float currentTemp, float targetTemp, float currentPressure) {
   }
   lastUpdate = millis();
   
-  // Minimalistic steam display
-  Serial.print("\x1B[2J");  // Clear screen
-  Serial.print("\x1B[H");   // Home cursor
+  // Simplified steam display matching other modes
+  Serial.println("\n━━ STEAM MODE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   
-  Serial.println("\n           ███████╗████████╗███████╗ █████╗ ███╗   ███╗");
-  Serial.println("           ██╔════╝╚══██╔══╝██╔════╝██╔══██╗████╗ ████║");
-  Serial.println("           ███████╗   ██║   █████╗  ███████║██╔████╔██║");
-  Serial.println("           ╚════██║   ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║");
-  Serial.println("           ███████║   ██║   ███████╗██║  ██║██║ ╚═╝ ██║");
-  Serial.println("           ╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝\n");
-  
-  Serial.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  
-  Serial.print("TEMP     ");
+  Serial.print("♨ TEMP   ");
   Serial.print(currentTemp, 1);
   Serial.print("°C → ");
   Serial.print(targetTemp, 1);
   Serial.println("°C");
   
-  Serial.print("PRESSURE ");
+  Serial.print("⚙ PRESSURE ");
   Serial.print(currentPressure, 1);
   Serial.println("bar → 15.0bar (MAX)");
   
-  Serial.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  Serial.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   
   // Temperature progress bar
   int tempPercent = constrain((int)((currentTemp - 50.0) / (targetTemp - 50.0) * 100), 0, 100);
-  Serial.print("HEAT   [");
+  Serial.print("⚡ HEAT   [");
   for (int i = 0; i < 20; i++) {
     Serial.print(i < (tempPercent / 5) ? "█" : "░");
   }
   Serial.print("] ");
   Serial.print(tempPercent);
-  Serial.println("%\n");
+  Serial.println("%");
   
   if (tempPercent >= 100) {
-    Serial.println("✓ READY TO STEAM\n");
+    Serial.println("✓ READY TO STEAM");
   }
+  Serial.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 }
 
 void displayError(const char* errorMsg) {
