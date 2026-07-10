@@ -83,10 +83,10 @@
 #define DEFAULT_TARGET_PRESSURE 9.0      // Bar
 #define DEFAULT_TARGET_TIME     30       // seconds (typical espresso shot)
 #define DEFAULT_TARGET_VOLUME   30       // ml (typical espresso shot)
-#define STEAM_TARGET_TEMP       120.0    // °C for building steam
+#define STEAM_TARGET_TEMP       125.0    // °C for building steam
 #define STEAM_TARGET_PRESSURE   15.0     // Bar for steam wand pressure
 #define MIN_TEMP                50.0
-#define MAX_TEMP                130.0
+#define MAX_TEMP                100.0
 #define MIN_PRESSURE            6.0
 #define MAX_PRESSURE            15.0
 #define MIN_TIME                5        // seconds
