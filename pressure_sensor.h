@@ -4,89 +4,67 @@
 #include "config.h"
 
 /*
- * HX710B Load Cell Amplifier Driver
- * Reads pressure from a pressure transducer via HX710B ADC
+ * Pressure Sensor Driver (5V G1/4 Water Pressure)
+ * Typical analog 0-10 bar sensor with 0-5V output
+ * Arduino ADC: 0-1023 (10-bit) for 0-5V input
  */
 
-static long pressureOffset = 0;
-static float lastPressure = 0.0;
-static int sampleBuffer[PRESSURE_SMOOTHING];
+static int sampleBuffer[PRESSURE_SMOOTHING] = {0};
 static int sampleIndex = 0;
+static float lastPressure = 0.0;
 
 void initPressureSensor() {
-  pinMode(HX710B_DOUT_PIN, INPUT);
-  pinMode(HX710B_CLK_PIN, OUTPUT);
-  digitalWrite(HX710B_CLK_PIN, LOW);
+  pinMode(PRESSURE_SENSOR_PIN, INPUT);
   
-  // Wait for sensor startup
-  delay(100);
-  
-  // Calibrate zero point (assuming no pressure at startup)
-  pressureOffset = readRawPressure();
-  
-  Serial.println("Pressure sensor calibrated");
+  // Read a few samples during init for baseline
+  for (int i = 0; i < PRESSURE_SMOOTHING; i++) {
+    sampleBuffer[i] = analogRead(PRESSURE_SENSOR_PIN);
+    delay(10);
+  }
 }
 
 float readPressureSensor() {
-  // Read multiple samples and average
-  long sum = 0;
-  for (int i = 0; i < 3; i++) {
-    sum += readRawPressure();
-    delay(10);
+  // Read current ADC value
+  int adcValue = analogRead(PRESSURE_SENSOR_PIN);
+  
+  // Add to circular buffer
+  sampleBuffer[sampleIndex] = adcValue;
+  sampleIndex = (sampleIndex + 1) % PRESSURE_SMOOTHING;
+  
+  // Calculate average
+  int sum = 0;
+  for (int i = 0; i < PRESSURE_SMOOTHING; i++) {
+    sum += sampleBuffer[i];
   }
-  long rawValue = sum / 3;
+  int avgAdc = sum / PRESSURE_SMOOTHING;
   
-  // Convert to pressure
-  long difference = rawValue - pressureOffset;
-  float pressure = difference * PRESSURE_SCALE;
-  pressure += PRESSURE_OFFSET;
+  // Convert ADC to pressure (bar)
+  // Map from ADC range (PRESSURE_MIN_ADC to PRESSURE_MAX_ADC) to bar range
+  float pressure = (float)(avgAdc - PRESSURE_MIN_ADC) / (float)(PRESSURE_MAX_ADC - PRESSURE_MIN_ADC);
+  pressure = pressure * (PRESSURE_MAX_BAR - PRESSURE_MIN_BAR) + PRESSURE_MIN_BAR;
   
-  // Apply exponential moving average for smoothing
-  lastPressure = (lastPressure * FLOW_SMOOTHING_FACTOR) + (pressure * (1.0 - FLOW_SMOOTHING_FACTOR));
+  // Clamp to valid range
+  pressure = constrain(pressure, PRESSURE_MIN_BAR, PRESSURE_MAX_BAR);
+  
+  // Apply low-pass filter for stability
+  lastPressure = (lastPressure * 0.7) + (pressure * 0.3);
   
   return lastPressure;
 }
 
-long readRawPressure() {
-  // Wait for data ready
-  int count = 0;
-  while (digitalRead(HX710B_DOUT_PIN) == HIGH) {
-    count++;
-    if (count > 100000) {
-      Serial.println("HX710B: Timeout waiting for data");
-      return pressureOffset;
-    }
-  }
-  
-  // Read 24-bit value
-  long value = 0;
-  for (int i = 0; i < 24; i++) {
-    digitalWrite(HX710B_CLK_PIN, HIGH);
-    delayMicroseconds(1);
-    digitalWrite(HX710B_CLK_PIN, LOW);
-    delayMicroseconds(1);
-    
-    if (digitalRead(HX710B_DOUT_PIN) == HIGH) {
-      value |= (1L << (23 - i));
-    }
-  }
-  
-  // 25th pulse for next conversion
-  digitalWrite(HX710B_CLK_PIN, HIGH);
-  delayMicroseconds(1);
-  digitalWrite(HX710B_CLK_PIN, LOW);
-  delayMicroseconds(1);
-  
-  // Convert from 24-bit two's complement
-  if (value & 0x800000) {
-    value |= 0xFF000000;
-  }
-  
-  return value;
+float getPressure() {
+  return lastPressure;
 }
 
-void calibratePressure(long zeroValue) {
-  pressureOffset = zeroValue;
+// Calibration helper - call this to calibrate the 0-bar point
+void calibratePressureZero() {
+  // Take average of 10 readings with no pressure applied
+  long sum = 0;
+  for (int i = 0; i < 10; i++) {
+    sum += analogRead(PRESSURE_SENSOR_PIN);
+    delay(20);
+  }
+  // This would be used to update PRESSURE_MIN_ADC in config.h
 }
 
 #endif

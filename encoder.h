@@ -5,31 +5,50 @@
 
 /*
  * Rotary Encoder Driver
- * For menu navigation and parameter adjustment
+ * Handles rotation detection and button press
+ * Pins configured for Arduino Nano INT0/INT1
+ * Also tracks user activity for auto-shutoff timer
  */
 
 volatile int encoderValue = 0;
 volatile boolean encoderButtonPressed = false;
 int lastEncoderValue = 0;
 
+// Activity tracking for auto-shutoff
+unsigned long lastActivityTime = 0;
+
+// Forward declarations
+void encoderISR_CLK();
+void encoderISR_DT();
+
 void initEncoder() {
-  pinMode(ENCODER_CLK_PIN, INPUT_PULLUP);
-  pinMode(ENCODER_DT_PIN, INPUT_PULLUP);
-  pinMode(ENCODER_SW_PIN, INPUT_PULLUP);
+  // Encoder pins with pullups
+  pinMode(ENCODER_CLK_PIN, INPUT_PULLUP);    // Pin 2 (INT0)
+  pinMode(ENCODER_DT_PIN, INPUT_PULLUP);     // Pin 3 (INT1)
+  pinMode(ENCODER_SW_PIN, INPUT_PULLUP);     // Pin 4 (button)
   
-  attachInterrupt(digitalPinToInterrupt(ENCODER_CLK_PIN), encoderISR, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(ENCODER_SW_PIN), buttonISR, FALLING);
+  // Attach interrupts for encoder rotation
+  attachInterrupt(digitalPinToInterrupt(ENCODER_CLK_PIN), encoderISR_CLK, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ENCODER_DT_PIN), encoderISR_DT, CHANGE);
+  
+  // Pin change interrupt for button (no dedicated interrupt on pin 4)
+  // We'll handle button debouncing in the main loop via checkSwitches
+  
+  lastActivityTime = millis();  // Initialize activity timer
+  
+  Serial.println(F("[Encoder] Initialized on CLK=2, DT=3, SW=4"));
 }
 
-void encoderISR() {
+// Interrupt handlers for encoder rotation
+void encoderISR_CLK() {
   static unsigned long lastTime = 0;
   unsigned long currentTime = millis();
   
-  // Debounce
   if (currentTime - lastTime < 5) {
-    return;
+    return;  // Debounce
   }
   lastTime = currentTime;
+  lastActivityTime = currentTime;  // Track activity
   
   if (digitalRead(ENCODER_CLK_PIN) == digitalRead(ENCODER_DT_PIN)) {
     encoderValue++;
@@ -38,25 +57,31 @@ void encoderISR() {
   }
 }
 
-void buttonISR() {
+void encoderISR_DT() {
   static unsigned long lastTime = 0;
   unsigned long currentTime = millis();
   
-  // Debounce
-  if (currentTime - lastTime < 50) {
-    return;
+  if (currentTime - lastTime < 5) {
+    return;  // Debounce
   }
   lastTime = currentTime;
+  lastActivityTime = currentTime;  // Track activity
   
-  encoderButtonPressed = true;
+  if (digitalRead(ENCODER_CLK_PIN) == digitalRead(ENCODER_DT_PIN)) {
+    encoderValue--;
+  } else {
+    encoderValue++;
+  }
 }
 
+// Get encoder rotation since last call
 int getEncoderDelta() {
   int delta = encoderValue - lastEncoderValue;
   lastEncoderValue = encoderValue;
   return delta;
 }
 
+// Check if encoder button was pressed (debounced in main loop)
 boolean isEncoderButtonPressed() {
   if (encoderButtonPressed) {
     encoderButtonPressed = false;
@@ -65,18 +90,20 @@ boolean isEncoderButtonPressed() {
   return false;
 }
 
-void handleEncoderInput() {
-  // Encoder input handling - can be extended in main sketch
-  int delta = getEncoderDelta();
-  
-  if (delta != 0) {
-    Serial.print("Encoder: ");
-    Serial.println(delta);
-  }
-  
-  if (isEncoderButtonPressed()) {
-    Serial.println("Encoder button pressed");
-  }
+// Set encoder button pressed flag (called from main loop debounce)
+void setEncoderButtonPressed() {
+  encoderButtonPressed = true;
+  lastActivityTime = millis();  // Track button press as activity
+}
+
+// Update activity time - called whenever user interacts
+void updateActivityTime() {
+  lastActivityTime = millis();
+}
+
+// Get time since last activity (milliseconds)
+unsigned long getTimeSinceLastActivity() {
+  return millis() - lastActivityTime;
 }
 
 #endif

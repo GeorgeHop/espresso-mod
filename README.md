@@ -4,34 +4,60 @@ A comprehensive Arduino Nano-based controller for espresso machines with tempera
 
 ## Features
 
-- **Temperature Control**: MAX31855 K-type thermocouple for precise temperature monitoring
-- **Pressure Monitoring**: HX710B load cell amplifier for pump pressure measurement
-- **Flow Rate Measurement**: YF-S201 flow meter for water dispensing
-- **Shot Progress Tracking**: Real-time progress bars for elapsed time vs target time and volume dispensed vs target volume
+- **Temperature Control**: MAX6675 K-type thermocouple for precise temperature monitoring
+- **Pressure Monitoring**: Analog pressure sensor for pump pressure measurement
+- **Pump Control**: PWM AC220V controller for smooth pump speed adjustment
+- **Shot Progress Tracking**: Real-time display of brewing progress
 - **Heating Control**: SSR (Solid State Relay) for thermoblock heating with PID control
-- **Pump Control**: MCP4131 digital potentiometer controlling SCR for pressure regulation
 - **User Interface**: TFT display with rotary encoder for menu navigation
 - **Dual Mode**: Espresso and steam modes
+- **Auto-Shutoff Protection**: 
+  - Automatic machine shutdown after 20 minutes of inactivity
+  - Activity is detected when user makes any changes (encoder, switches)
+  - To reactivate: toggle manual power switch (down then up)
+  - Activity timer resets on each user interaction
 
 ## Hardware Requirements
 
 ### Microcontroller
 - Arduino Nano (ATmega328P)
 
+## Bill of Materials (Components List)
+
+### Main Components
+1. **Arduino Nano** - Microcontroller (ATmega328P)
+2. **Termopara Typu K Moduł MAX6675** - K-type Thermocouple Module, up to 800°C (SPI)
+3. **Wyświetlacz TFT IPS 1,69″ ST7789V 240x280px** - 1.69" IPS TFT Display (SPI)
+4. **Czujnik Przetwornika G1/4 Ciśnienie 0-200PSI 5V** - Pressure Sensor 0-200 PSI, G1/4 thread, 5V output (Analog)
+
+### Control & Power Components
+5. **Moduł enkodera wieloobrotowego z przyciskiem** - Multi-turn Rotary Encoder Module
+   - 360° rotation, multi-turn
+   - 20 steps per rotation
+   - Integrated push button
+   
+6. **Przetwornica napięcia 230V AC - 5V 2A DC** - Power Supply Converter (230V AC to 5V 2A DC)
+
+7. **PRZEKAŹNIK 1-KANAŁOWY MODUŁ 5V AVR ARDUINO ARM 10A** - 1-Channel Relay Module 5V, 10A (for aux control)
+
+8. **PRZEKAŹNIK PÓŁPRZEWODNIKOWY SSR DA 40A DC-AC** - Solid State Relay (SSR) 40A DC-AC (for heating element)
+
+9. **Moduł Sterownik PWM AC220V YYAC-3S** - PWM AC220V Controller/Dimmer (for pump control)
+
 ### Sensors
-- **MAX31855**: K-type thermocouple amplifier (SPI)
-- **HX710B**: 24-bit load cell amplifier (I2C-like protocol)
-- **YF-S201**: Hall effect flow meter
+- **MAX6675**: K-type thermocouple amplifier (SPI)
+- **Pressure Transducer**: 0-200 PSI analog 5V output
 - **Rotary Encoder**: With integrated push button
 
 ### Actuators
-- **SSR**: 10-30A Solid State Relay for heating
-- **MCP4131**: 256-position digital potentiometer (SPI)
-- **TFT Display**: 2.4"-3.5" SPI-based (ILI9341, ST7789, etc.)
+- **SSR 40A DC-AC**: Solid State Relay for heating element
+- **PWM AC220V Controller (YYAC-3S)**: PWM dimmer for pump control
+- **TFT Display**: 1.69" IPS ST7789V (240x280px)
 
 ### Switches
 - Brew switch (momentary, active low)
 - Steam switch (momentary or toggle, active low)
+- Manual power switch (toggle) for machine on/off
 
 ## Pin Configuration
 
@@ -39,25 +65,41 @@ See `config.h` for complete pin mapping. Default configuration:
 
 | Component | Pin | Type |
 |-----------|-----|------|
-| MAX31855 CS | 10 | Digital |
-| MAX31855 CLK | 13 | Digital |
-| MAX31855 MOSI | 11 | Digital |
-| MAX31855 MISO | 12 | Digital |
-| HX710B DOUT | 4 | Digital |
-| HX710B CLK | 5 | Digital |
-| Flow Meter | 2 | Interrupt |
-| Encoder CLK | 6 | Digital |
-| Encoder DT | 7 | Digital |
-| Encoder SW | 8 | Digital |
-| Brew Switch | A0 | Analog/Digital |
-| Steam Switch | A1 | Analog/Digital |
-| SSR | 3 | PWM |
-| MCP4131 CS | A2 | Digital |
-| MCP4131 CLK | A3 | Digital |
-| MCP4131 MOSI | A4 | Digital |
-| TFT CS | A5 | Digital |
-| TFT DC | A6 | Digital |
-| TFT RST | A7 | Digital |
+| MAX6675 CS | 10 | Digital |
+| MAX6675 CLK | 13 | Digital |
+| MAX6675 MOSI | 11 | Digital |
+| MAX6675 MISO | 12 | Digital |
+| Pressure Sensor | A0 | Analog |
+| Encoder CLK | 2 | Digital |
+| Encoder DT | 3 | Digital |
+| Encoder SW | 4 | Digital |
+| Brew Switch | 5 | Digital |
+| Steam Switch | 6 | Digital |
+| Display CLK (SPI) | 13 | Digital |
+| Display MOSI (SPI) | 11 | Digital |
+| Display CS | 7 | Digital |
+| Display DC | 8 | Digital |
+| Display RST | 9 | Digital |
+| SSR Heating | 3 | PWM |
+| PWM Pump Controller | A2 | Analog (PWM via DAC/GPIO) |
+
+### PWM Pump Control
+
+The pump is controlled via the **YYAC-3S AC220V PWM Controller** which receives a 0-5V analog signal from the Arduino:
+
+- **Signal Pin**: A2 (can be configured as PWM output or analog output)
+- **Voltage Range**: 0-5V DC
+  - 0V = Pump off (0% speed)
+  - 5V = Pump at maximum speed (100%)
+- **Control Method**: 
+  - Use `analogWrite(PWM_PUMP_PIN, value)` where value is 0-255
+  - Or use `analogReference()` with DAC if available
+  - Smoothly ramp up/down pump speed for consistent shot quality
+
+**Typical Usage:**
+```cpp
+analogWrite(PWM_PUMP_PIN, 180);  // ~70% pump speed
+```
 
 ## Required Libraries
 
@@ -134,6 +176,31 @@ Use Ziegler-Nichols method or empirical tuning for your machine.
 - **Steam Switch**: Switch to steam mode
 - **Rotary Encoder**: Nav (temp, pressure, time, volume)
   - Press: Confirm/Enter menu
+- **Manual Power Switch**: Toggle to activate machine after auto-shutoff
+
+### Auto-Shutoff & Activity Tracking
+
+The machine automatically enters a low-power shutdown mode after **20 minutes of inactivity** to save energy and protect the heating element:
+
+**How it works:**
+- Activity timer starts on boot and is reset whenever the user:
+  - Adjusts settings with the rotary encoder
+  - Presses the encoder button
+  - Activates brew or steam mode
+  - Toggles any control switch
+- After 20 minutes without any user interaction:
+  - Heating element turns off (SSR disabled)
+  - Display may dim or show standby mode
+  - Pump is disabled
+  
+**To reactivate the machine:**
+- Toggle the **manual power switch** down, then back up
+- This clears the inactivity flag and resets the activity timer
+- Machine returns to normal operation and reheats
+
+**Configuration:**
+- Inactivity timeout: `#define INACTIVITY_TIMEOUT 1200000` (20 minutes in milliseconds) in `config.h`
+- Adjust this value if you need a different auto-shutoff duration
 
 ### Display Output
 

@@ -5,183 +5,109 @@
 
 /*
  * Menu System for Settings Control
- * Rotary encoder: rotate to adjust, press to cycle through menu items
+ * Encoder Navigation:
+ * - Rotate: Navigate through settings or adjust value
+ * - Click: Select/confirm setting
+ * 
+ * In STEAM_PRESSURE menu, rotation adjusts pressure directly
  */
 
 enum MenuState {
-  MENU_DISABLED,
-  MENU_TEMP,
-  MENU_PRESSURE,
-  MENU_TIME,
-  MENU_VOLUME,
-  MENU_PREINFUSION_ENABLE,
-  MENU_PREINFUSION_TIME,
-  MENU_EXIT
+  MENU_DISABLED = 0,
+  MENU_BREW_TEMP = 1,
+  MENU_BREW_PRESSURE = 2,
+  MENU_BREW_TIME = 3,
+  MENU_PREINFUSION = 4,
+  MENU_STEAM_TEMP = 5,
+  MENU_STEAM_PRESSURE = 6,
+  MENU_EXIT = 7
 };
 
-MenuState currentMenu = MENU_DISABLED;
-MenuState previousMenu = MENU_DISABLED;
+MenuState currentMenuSelection = MENU_BREW_TEMP;
+bool inSettingEdit = false;  // True when user is editing a value
+float tempBrewPressure = PUMP_DEFAULT_BREW_PRESSURE;
+float tempSteamPressure = PUMP_DEFAULT_STEAM_PRESSURE;
 
-void enterMenu() {
-  currentMenu = MENU_TEMP;
-  Serial.println("\n=== SETTINGS MENU ===");
-  displayMenuState();
+void initMenu() {
+  tempBrewPressure = PUMP_DEFAULT_BREW_PRESSURE;
+  tempSteamPressure = PUMP_DEFAULT_STEAM_PRESSURE;
 }
 
-void exitMenu() {
-  if (currentMenu != MENU_DISABLED) {
-    Serial.println("=== EXITING MENU ===\n");
-    currentMenu = MENU_DISABLED;
+void advanceMenuSelection() {
+  if (currentMenuSelection == MENU_STEAM_PRESSURE) {
+    currentMenuSelection = MENU_BREW_TEMP;
+  } else {
+    currentMenuSelection = (MenuState)((int)currentMenuSelection + 1);
   }
+  inSettingEdit = false;  // Reset edit mode when navigating
 }
 
-void cycleMenu() {
-  if (currentMenu == MENU_DISABLED) {
-    return;
+void reverseMenuSelection() {
+  if (currentMenuSelection == MENU_BREW_TEMP) {
+    currentMenuSelection = MENU_STEAM_PRESSURE;
+  } else {
+    currentMenuSelection = (MenuState)((int)currentMenuSelection - 1);
   }
-  
-  // Cycle through menu items
-  switch (currentMenu) {
-    case MENU_TEMP:
-      currentMenu = MENU_PRESSURE;
-      break;
-    case MENU_PRESSURE:
-      currentMenu = MENU_TIME;
-      break;
-    case MENU_TIME:
-      currentMenu = MENU_VOLUME;
-      break;
-    case MENU_VOLUME:
-      currentMenu = MENU_PREINFUSION_ENABLE;
-      break;
-    case MENU_PREINFUSION_ENABLE:
-      currentMenu = MENU_PREINFUSION_TIME;
-      break;
-    case MENU_PREINFUSION_TIME:
-      currentMenu = MENU_EXIT;
-      break;
-    case MENU_EXIT:
-      exitMenu();
-      return;
-    case MENU_DISABLED:
-      break;
-  }
-  
-  if (currentMenu != MENU_DISABLED) {
-    displayMenuState();
+  inSettingEdit = false;  // Reset edit mode when navigating
+}
+
+void enterEditMode() {
+  if (currentMenuSelection == MENU_STEAM_PRESSURE) {
+    inSettingEdit = true;
+    tempSteamPressure = getCurrentSteamPressure();
   }
 }
 
-void adjustMenuValue(int delta) {
-  if (currentMenu == MENU_DISABLED) {
-    return;
-  }
-  
-  switch (currentMenu) {
-    case MENU_TEMP:
-      // Each encoder tick = 0.5°C
-      extern void adjustTargetTemp(int);
-      adjustTargetTemp(delta);
-      break;
-      
-    case MENU_PRESSURE:
-      // Each encoder tick = 0.1 bar
-      extern void adjustTargetPressure(int);
-      adjustTargetPressure(delta);
-      break;
-      
-    case MENU_TIME:
-      // Each encoder tick = 1 second
-      extern void adjustTargetTime(int);
-      adjustTargetTime(delta);
-      break;
-      
-    case MENU_VOLUME:
-      // Each encoder tick = 1 ml
-      extern void adjustTargetVolume(int);
-      adjustTargetVolume(delta);
-      break;
-      
-    case MENU_PREINFUSION_ENABLE:
-      // Toggle pre-infusion on/off
-      extern void togglePreInfusion();
-      togglePreInfusion();
-      break;
-      
-    case MENU_PREINFUSION_TIME:
-      // Each encoder tick = 1 second
-      extern void adjustPreInfusionTime(int);
-      adjustPreInfusionTime(delta);
-      break;
-      
-    case MENU_EXIT:
-    case MENU_DISABLED:
-      break;
+void exitEditMode() {
+  inSettingEdit = false;
+}
+
+bool isInEditMode() {
+  return inSettingEdit;
+}
+
+// Adjust brewing pressure during edit mode
+void adjustBrewPressure(int delta) {
+  if (inSettingEdit && currentMenuSelection == MENU_BREW_PRESSURE) {
+    // Each step = 0.5 bar adjustment
+    float adjustment = delta * 0.5;
+    tempBrewPressure += adjustment;
+    tempBrewPressure = constrain(tempBrewPressure, MIN_BREW_PRESSURE, MAX_BREW_PRESSURE);
   }
 }
 
-void displayMenuState() {
-  if (currentMenu == MENU_DISABLED) {
-    return;
-  }
-  
-  extern float targetTemp;
-  extern float targetPressure;
-  extern unsigned long targetTime;
-  extern float targetVolume;
-  extern unsigned long preInfusionTime;
-  extern byte preInfusionEnabled;
-  
-  Serial.print("\n> ");
-  
-  switch (currentMenu) {
-    case MENU_TEMP:
-      Serial.print("Temperature: ");
-      Serial.print(targetTemp, 1);
-      Serial.println("°C (rotate to adjust, press for next)");
-      break;
-      
-    case MENU_PRESSURE:
-      Serial.print("Pressure: ");
-      Serial.print(targetPressure, 1);
-      Serial.println("bar (rotate to adjust, press for next)");
-      break;
-      
-    case MENU_TIME:
-      Serial.print("Target Time: ");
-      Serial.print(targetTime);
-      Serial.println("s (rotate to adjust, press for next)");
-      break;
-      
-    case MENU_VOLUME:
-      Serial.print("Target Volume: ");
-      Serial.print(targetVolume, 1);
-      Serial.println("ml (rotate to adjust, press for next)");
-      break;
-      
-    case MENU_PREINFUSION_ENABLE:
-      Serial.print("Pre-Infusion: ");
-      Serial.print(preInfusionEnabled ? "ON" : "OFF");
-      Serial.println(" (rotate to toggle, press for next)");
-      break;
-      
-    case MENU_PREINFUSION_TIME:
-      Serial.print("Pre-Infusion Time: ");
-      Serial.print(preInfusionTime);
-      Serial.println("s (rotate to adjust, press for next)");
-      break;
-      
-    case MENU_EXIT:
-      Serial.println("Exit Settings (press to confirm)");
-      break;
-      
-    case MENU_DISABLED:
-      break;
+// Adjust steam pressure during edit mode
+void adjustSteamPressure(int delta) {
+  if (inSettingEdit && currentMenuSelection == MENU_STEAM_PRESSURE) {
+    // Each step = 0.5 bar adjustment
+    float adjustment = delta * 0.5;
+    tempSteamPressure += adjustment;
+    tempSteamPressure = constrain(tempSteamPressure, MIN_STEAM_PRESSURE, MAX_STEAM_PRESSURE);
   }
 }
 
-bool isMenuActive() {
-  return currentMenu != MENU_DISABLED;
+void commitBrewPressureChange() {
+  if (currentMenuSelection == MENU_BREW_PRESSURE) {
+    setPumpBrewPressure(tempBrewPressure);
+  }
+}
+
+void commitSteamPressureChange() {
+  if (currentMenuSelection == MENU_STEAM_PRESSURE) {
+    setPumpSteamPressure(tempSteamPressure);
+  }
+}
+
+MenuState getCurrentMenuSelection() {
+  return currentMenuSelection;
+}
+
+float getTempBrewPressure() {
+  return tempBrewPressure;
+}
+
+float getTempSteamPressure() {
+  return tempSteamPressure;
 }
 
 #endif
