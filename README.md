@@ -2,7 +2,79 @@
 
 A comprehensive Arduino Nano-based controller for espresso machines with temperature, pressure, and flow rate management.
 
-## Features
+## About This Project
+
+My coffee journey started fast—I went through multiple grinders and espresso machines searching for the perfect setup. When I finally found a machine that suited my needs, I thought that was the end... but obviously not! The machine lacked essential features:
+
+- ❌ No temperature control → Thermoblock fluctuations everywhere
+- ❌ No pressure control → Inconsistent extractions
+- ❌ No built-in timer → Manual timing for every shot
+- ❌ No preinfusion → Can't dial in properly
+- ❌ No portafilter preheating → Temperature shock on group head
+- ❌ Limited steam mode → Poor milk steaming performance
+- ❌ No turn on schedule
+- ❌ No flow meter
+
+I knew about Gagguino and Gaggia mods, but I'd already invested in my machine. Why switch and buy another kit?
+
+**So I decided to build an open-source espresso machine controller.** With experience and the help of Claude, I selected all the hardware, designed the system, and got everything to fit. Now anyone can:
+
+- ✅ Build this mod for their machine
+- ✅ Tweak and add new features
+- ✅ Create a fully custom machine
+- ✅ Share improvements with the community
+- ✅ Just have fun experimenting! ☕
+
+This is a **community-driven open-source project**. Contributions, improvements, and forks are welcome!
+
+## ⚠️ Safety & Disclaimer
+
+**IMPORTANT: This project is currently in active development.** Please read and understand the following before proceeding:
+
+### Risks & Responsibilities
+- **This project involves work with high voltage (230V AC) and high current circuits.** Mistakes in wiring or assembly can result in:
+  - Electrical shock or electrocution
+  - Fire hazards
+  - Damage to equipment or property
+  - Personal injury
+
+- **All modifications are done entirely at your own risk.** The author and contributors provide this project "as-is" without warranties or guarantees of safety or functionality.
+
+- **You are responsible for:**
+  - Understanding electrical safety principles
+  - Following all wiring diagrams carefully
+  - Double-checking connections before power-up
+  - Having appropriate electrical knowledge (or consulting an electrician)
+  - Proper grounding and circuit protection
+
+### Before Plugging Into Outlet
+1. **Assemble and test Arduino + all modules FIRST** while unplugged:
+   - Upload firmware to Arduino Nano
+   - Connect all sensors (thermocouple, pressure sensor)
+   - Connect display, encoder, relay module
+   - Test each component individually
+   - Verify Serial output shows sensor readings
+
+2. **Only after validation, assemble the high-voltage section:**
+   - Connect SSR, pump controller, and relay to mains power
+   - Double-check all connections against WIRING_DIAGRAM.md
+   - Use a multimeter to verify connections
+
+3. **Test the full system:**
+   - Plug in 5V power supply (low voltage) first
+   - Verify Arduino starts and reads sensors
+   - Test relay activation without machine connected
+   - Only then connect to your espresso machine
+
+### Disclaimer
+This project is provided for educational purposes and as-is without any liability. By building and using this controller, you acknowledge:
+- You understand the electrical risks involved
+- You accept full responsibility for safety
+- The author is not liable for any damage, injury, or loss
+
+**When in doubt, consult a qualified electrician or experienced electronics hobbyist.**
+
+---
 
 - **Temperature Control**: MAX6675 K-type thermocouple for precise temperature monitoring
 - **Pressure Monitoring**: Analog pressure sensor for pump pressure measurement
@@ -26,23 +98,23 @@ A comprehensive Arduino Nano-based controller for espresso machines with tempera
 
 ### Main Components
 1. **Arduino Nano** - Microcontroller (ATmega328P)
-2. **Termopara Typu K Moduł MAX6675** - K-type Thermocouple Module, up to 800°C (SPI)
-3. **Wyświetlacz TFT IPS 1,69″ ST7789V 240x280px** - 1.69" IPS TFT Display (SPI)
-4. **Czujnik Przetwornika G1/4 Ciśnienie 0-200PSI 5V** - Pressure Sensor 0-200 PSI, G1/4 thread, 5V output (Analog)
+2. **K-Type Thermocouple Module MAX6675** - K-type Thermocouple Module, up to 800°C (SPI)
+3. **1.69" TFT IPS Display ST7789V 240x280** - 1.69" IPS TFT Display (SPI)
+4. **G1/4 Pressure Transducer Sensor 0-200PSI 5V** - Pressure Sensor 0-200 PSI, G1/4 thread, 5V output (Analog)
 
 ### Control & Power Components
-5. **Moduł enkodera wieloobrotowego z przyciskiem** - Multi-turn Rotary Encoder Module
+5. **Multi-turn Rotary Encoder Module with Button** - Multi-turn Rotary Encoder Module
    - 360° rotation, multi-turn
    - 20 steps per rotation
    - Integrated push button
    
-6. **Przetwornica napięcia 230V AC - 5V 2A DC** - Power Supply Converter (230V AC to 5V 2A DC)
+6. **AC 230V to 5V 2A DC Power Converter** - Power Supply Converter (230V AC to 5V 2A DC)
 
-7. **PRZEKAŹNIK 1-KANAŁOWY MODUŁ 5V AVR ARDUINO ARM 10A** - 1-Channel Relay Module 5V, 10A (for aux control)
+7. **1-Channel 5V Relay Module for Arduino 10A** - 1-Channel Relay Module 5V, 10A (for main power control)
 
-8. **PRZEKAŹNIK PÓŁPRZEWODNIKOWY SSR DA 40A DC-AC** - Solid State Relay (SSR) 40A DC-AC (for heating element)
+8. **Solid State Relay (SSR) 40A DC-AC Module** - Solid State Relay (SSR) 40A DC-AC (for heating element)
 
-9. **Moduł Sterownik PWM AC220V YYAC-3S** - PWM AC220V Controller/Dimmer (for pump control)
+9. **AC220V PWM Controller Module YYAC-3S** - PWM AC220V Controller/Dimmer (for pump control)
 
 ### Sensors
 - **MAX6675**: K-type thermocouple amplifier (SPI)
@@ -101,6 +173,50 @@ The pump is controlled via the **YYAC-3S AC220V PWM Controller** which receives 
 analogWrite(PWM_PUMP_PIN, 180);  // ~70% pump speed
 ```
 
+## Getting Started
+
+### Prerequisites
+- Basic soldering skills (recommended)
+- Arduino IDE installed on your computer
+- A compatible espresso machine to modify
+- Tools: Multimeter, wire strippers, screwdrivers
+
+### What You'll Find in This Repo
+
+```
+├── espresso-mod.ino              # Main firmware
+├── config.h                      # Pin & parameter configuration
+├── WIRING_DIAGRAM.md            # Detailed wiring instructions
+├── README.md                    # This file
+├── HARDWARE_NOTES.md            # Hardware-specific details
+├── MENU_GUIDE.md                # UI menu system
+├── SETTINGS_GUIDE.md            # Configuration options
+├── PREINFUSION_GUIDE.md         # Pre-infusion feature
+├── STEAM_MODE.md                # Steam mode settings
+├── libraries.txt                # Required Arduino libraries
+└── test/                        # Test sketches
+```
+
+### Step-by-Step Setup
+
+1. **Review Hardware**: Read [WIRING_DIAGRAM.md](WIRING_DIAGRAM.md) thoroughly
+2. **Gather Components**: Purchase all items from [Bill of Materials](#bill-of-materials)
+3. **Prepare Arduino**: Install Arduino IDE and required libraries
+4. **Wire Components**: Follow [WIRING_DIAGRAM.md](WIRING_DIAGRAM.md) carefully
+5. **Configure**: Edit `config.h` for your specific hardware
+6. **Upload Firmware**: Flash the code to Arduino Nano
+7. **Test Components**: Run test sketches before connecting to machine
+8. **Integrate**: Install into your espresso machine carefully
+9. **Calibrate**: Follow setup wizard for pressure & temperature calibration
+10. **Enjoy**: Brew perfect espresso! ☕
+
+### Recommended Reading Order
+
+1. [WIRING_DIAGRAM.md](WIRING_DIAGRAM.md) - Understand all connections
+2. [HARDWARE_NOTES.md](HARDWARE_NOTES.md) - Component specifics
+3. [config.h](config.h) - See available settings
+4. [MENU_GUIDE.md](MENU_GUIDE.md) - How to use the interface
+
 ## Required Libraries
 
 Add these to your Arduino libraries:
@@ -142,12 +258,21 @@ Add these to your Arduino libraries:
 **Default values** (adjust in `config.h`):
 ```cpp
 #define DEFAULT_TARGET_TIME     30       // seconds for typical espresso
-#define DEFAULT_TARGET_VOLUME   30       // ml for typical espresso
+#define PUMP_FLOW_RATE          2.0      // ml/s at 9 bar (calibrate for your machine)
 ```
 
+**Flow Rate Calibration:**
+To calibrate your pump's flow rate for accurate volume estimation:
+1. Run the pump at 9 bar for exactly 10 seconds into a measuring cup
+2. Measure the volume in ml
+3. Divide by 10 to get ml/s
+   - Example: 20ml in 10s → 2.0 ml/s
+4. Update `PUMP_FLOW_RATE` in `config.h`
+
 **Runtime adjustment** (via encoder):
-- Call `adjustTargetTime(delta)` or `adjustTargetVolume(delta)` from encoder handler
-- Range: 5-60 seconds, 10-100 ml
+- Call `adjustTargetTime(delta)` from encoder handler
+- Range: 5-60 seconds
+- Volume automatically calculated: `Volume = Time × Flow Rate`
 
 ### PID Tuning
 
@@ -202,24 +327,46 @@ The machine automatically enters a low-power shutdown mode after **20 minutes of
 - Inactivity timeout: `#define INACTIVITY_TIMEOUT 1200000` (20 minutes in milliseconds) in `config.h`
 - Adjust this value if you need a different auto-shutoff duration
 
+### Wake-Up Timer (Manual Time-Based)
+
+Automatically enable the espresso machine after a set time **from bootup**. Perfect for starting the machine before you wake up in the morning!
+
+**How to use:**
+1. Power on Arduino (or press manual power switch ON)
+2. Use menu or Serial command to set wake-up time
+3. Set desired hours (1-12 hours from boot)
+4. Machine will automatically:
+   - Exit shutdown state if inactive
+   - Begin heating
+   - Be ready when timer reaches zero
+
+**Example:**
+```cpp
+setWakeupTimer(8);  // Machine will wake up in 8 hours
+setWakeupTimer(0);  // Disable timer
+```
+
+**Configuration:**
+```cpp
+#define WAKEUP_TIMER_ENABLED    0        // Set to 1 to enable feature
+#define WAKEUP_MAX_HOURS        12       // Maximum: 12 hours
+```
+
+**Note:** Wake-up timer counts from Arduino boot time (uses `millis()` internally). Set the number of hours you want from the current moment.
+
 ### Display Output
 
 During brewing, the controller displays:
 - **Temperature**: Current vs target (°C)
 - **Pressure**: Current vs target (bar)
-- **Flow Rate**: Real-time flow in ml/s
-- **Shot Time**: Elapsed vs target time with progress bar
-- **Shot Volume**: Current vs target volume with progress bar
+- **Time**: Elapsed vs target time with progress bar
+- **Volume**: Estimated volume (ml) based on pump flow rate and elapsed time
 - **Status**: Current state (IDLE, HEATING, BREWING, STEAMING)
 
-Example serial output during brew:
-```
-=== ESPRESSO CONTROLLER ===
-Temp: 92.5°C → 92.0°C | Pressure: 9.2bar → 9.0bar | Flow: 2.5ml/s
-Time: 15s/30s | Volume: 25ml/30ml
-Time progress:   [████████░░] 80%
-Volume progress: [██████░░░░] 60%
-```
+**Volume Calculation:**
+- Estimated volume = Elapsed Time (seconds) × Pump Flow Rate (ml/s)
+- Updated in real-time as brewing progresses
+- No flow meter required!
   - Press: Confirm/Enter menu
 
 ## Safety Features
@@ -279,10 +426,33 @@ Multiple SPI devices can share CLK and MOSI if chip select pins are separate.
 - Pre-infusion support
 - Shot timer display
 
+## Contributing
+
+This is an **open-source community project**! Contributions are welcome:
+
+- 🐛 **Found a bug?** Open an issue and describe it
+- ✨ **Have a feature idea?** Submit a pull request or discussion
+- 📖 **Documentation improvements?** Help make it clearer
+- 🔧 **Hardware optimizations?** Share your improvements
+- 🤝 **Build your own version?** Fork it and customize!
+
+All contributors are credited. Let's make espresso modding accessible to everyone!
+
 ## License
 
-[Add your license here]
+MIT License - Free to use, modify, and distribute
+See LICENSE file for details
 
-## Support
+## Support & Community
 
-For issues or questions, check the serial debug output and verify calibration values match your hardware.
+- 📧 Issues and questions: Use GitHub Issues
+- 💬 Discussions: Share your builds and modifications
+- ☕ Share your results and feedback!
+
+## Author
+
+**George Mac** - ESP espresso machine enthusiast building open-source espresso control systems with Claude AI
+
+---
+
+**Happy espresso brewing!** ☕ If you build this mod, please share your experience and contribute improvements back to the community!

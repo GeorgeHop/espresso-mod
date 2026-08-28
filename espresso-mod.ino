@@ -56,21 +56,33 @@ float targetTemp;  // Set by state machine based on mode
 unsigned long brewStartTime = 0;
 unsigned int brewElapsedTime = 0;
 bool brewTimerActive = false;
+float brewEstimatedVolume = 0.0;  // Estimated volume (ml) based on flow rate and time
 
 // ===== PORTAFILTER PREHEAT =====
 bool preheatDoneThisSession = false;
 unsigned long preheatStartTime = 0;
 bool preheatActive = false;
+bool waterDetected = false;              // Flag to track if water pressure detected during preheat
+unsigned long waterCheckStartTime = 0;  // Time when preheat started (for water pressure check)
+bool preheatError = false;              // Flag to display preheat error message
+unsigned long preheatErrorTime = 0;     // Time when error occurred (to auto-clear after 5 seconds)
 
 // ===== SWITCH STATES =====
-bool brewSwitchOn = false;
-bool steamSwitchOn = false;
+bool powerSwitchOn = false;     // Power switch position (UP=ON, DOWN=OFF)
+bool lastPowerState = false;    // Track power switch state changes
+bool brewSwitchOn = false;      // TODEA latching switch (D5)
+bool steamSwitchOn = false;     // SW312 click button on steam wand (D6)
 bool lastBrewState = false;
 bool lastSteamState = false;
 
 // ===== AUTO-SHUTOFF & ACTIVITY TRACKING =====
 bool machineShutdown = false;  // Flag for machine in shutdown state
 unsigned long lastActivityCheck = 0;
+
+// ===== WAKE-UP TIMER (counts down from boot time) =====
+bool wakeupTimerEnabled = false;
+unsigned long wakeupTimeMillis = 0;  // Wake-up time in milliseconds from boot
+unsigned long bootTimeMillis = 0;    // Time when Arduino started
 
 // ===== ENCODER STATES =====
 unsigned long lastMenuActivity = 0;  // For auto-close timer
@@ -112,6 +124,11 @@ void setup() {
   initEncoder();
   delay(100);
   
+  // Enable internal pull-ups for brew and steam switches
+  pinMode(BREW_SWITCH_PIN, INPUT_PULLUP);
+  pinMode(STEAM_SWITCH_PIN, INPUT_PULLUP);
+  delay(100);
+  
   initOutputControl();
   delay(100);
   
@@ -124,6 +141,7 @@ void setup() {
   lastPidUpdate = millis();
   lastActivityTime = millis();  // Initialize activity timer
   lastActivityCheck = millis();
+  bootTimeMillis = millis();    // Record boot time for wake-up timer
   
   // Set initial pump pressure for both modes
   setPumpBrewPressure(brewPressure);
@@ -135,6 +153,7 @@ void setup() {
   Serial.print(F(" bar, Steam Pressure: "));
   Serial.print(steamPressure);
   Serial.println(F(" bar"));
+  Serial.println(F("[Setup] Wake-up timer available - use menu to set"));
 }
 
 void loop() {
@@ -159,6 +178,9 @@ void loop() {
   
   // Check for inactivity timeout
   checkInactivityTimeout();
+  
+  // Check wake-up timer
+  checkWakeupTimer();
   
   // Update state machine
   updateStateMachine();
@@ -193,21 +215,46 @@ void updateStateMachine() {
     // Thermoblock reached target temp and preheat not done yet
     currentState = STATE_PORTAFILTER_PREHEAT;
     preheatStartTime = currentMillis;
+    waterCheckStartTime = currentMillis;  // Start water pressure check timer
     preheatActive = true;
+    waterDetected = false;  // Reset water detection flag
     setPumpPressure(PORTAFILTER_PREHEAT_PRESSURE);
     updateActivityTime();
-    Serial.println(F("[Preheat] Starting portafilter flush (5s at 6.0 bar)"));
+    Serial.println(F("[Preheat] Starting portafilter flush (5s at 6.0 bar, checking for water..."));
     return;
   }
   
   // Handle preheat countdown
   if (currentState == STATE_PORTAFILTER_PREHEAT) {
-    unsigned long preheatElapsed = currentMillis - preheatStartTime;
+    unsigned long preheatElapsed = currentMillis - waterCheckStartTime;
     
-    if (preheatElapsed >= PORTAFILTER_PREHEAT_DURATION) {
+    // Check for water pressure after 1 second delay
+    if (!waterDetected && preheatElapsed >= WATER_PRESSURE_CHECK_DELAY) {
+      if (currentPressure >= WATER_PRESSURE_THRESHOLD) {
+        // Water detected - pressure is building
+        waterDetected = true;
+        Serial.println(F("[Preheat] Water detected - pressure OK"));
+      } else {
+        // No water - pressure too low
+        preheatActive = false;
+        preheatDoneThisSession = true;
+        waterDetected = false;
+        preheatError = true;
+        preheatErrorTime = currentMillis;
+        setPumpOutput(0);
+        currentState = STATE_HOME;
+        updateActivityTime();
+        Serial.println(F("[Preheat] NO WATER DETECTED - Tank empty?"));
+        return;
+      }
+    }
+    
+    // Check if preheat duration complete (only if water was detected)
+    if (waterDetected && preheatElapsed >= PORTAFILTER_PREHEAT_DURATION) {
       // Preheat complete
       preheatActive = false;
       preheatDoneThisSession = true;
+      waterDetected = false;
       setPumpOutput(0);
       currentState = STATE_HOME;
       updateActivityTime();
@@ -219,6 +266,7 @@ void updateStateMachine() {
   // Check if brew switch state changed
   if (brewSwitchOn && !lastBrewState) {
     if (!steamSwitchOn && !machineShutdown) {
+      // INTERLOCK: Brew can only activate if steam is OFF
       // If in preheat, skip it and go straight to brewing
       if (currentState == STATE_PORTAFILTER_PREHEAT) {
         preheatActive = false;
@@ -230,6 +278,7 @@ void updateStateMachine() {
       currentState = STATE_BREWING;
       brewStartTime = currentMillis;
       brewElapsedTime = 0;
+      brewEstimatedVolume = 0.0;
       brewTimerActive = true;
       targetTemp = brewTemp;
       // Apply brew pressure pump control
@@ -245,7 +294,8 @@ void updateStateMachine() {
   
   // Check if steam switch state changed
   if (steamSwitchOn && !lastSteamState) {
-    if (!machineShutdown) {
+    if (!brewSwitchOn && !machineShutdown) {
+      // INTERLOCK: Steam can only activate if brew is OFF
       // If in preheat, skip it and go to steam
       if (currentState == STATE_PORTAFILTER_PREHEAT) {
         preheatActive = false;
@@ -274,6 +324,8 @@ void updateStateMachine() {
   // Handle brewing timer
   if (brewTimerActive && brewSwitchOn) {
     brewElapsedTime = (currentMillis - brewStartTime) / 1000;
+    // Calculate estimated volume based on flow rate and elapsed time
+    brewEstimatedVolume = brewElapsedTime * PUMP_FLOW_RATE;
     if (brewElapsedTime >= brewTime && pumpStopOnTimeout) {
       brewTimerActive = false;
       setSsrOutput(0);
@@ -287,8 +339,40 @@ void checkSwitches() {
   if (currentMillis - lastSwitchCheck < 20) return;
   lastSwitchCheck = currentMillis;
   
+  // Read power switch (A3): HIGH = ON, LOW = OFF
+  bool newPowerState = digitalRead(POWER_SWITCH_PIN) == HIGH;
   bool newBrewState = digitalRead(BREW_SWITCH_PIN) == LOW;
   bool newSteamState = digitalRead(STEAM_SWITCH_PIN) == LOW;
+  
+  // Handle power switch state changes
+  if (newPowerState != powerSwitchOn) {
+    powerSwitchOn = newPowerState;
+    
+    if (!powerSwitchOn) {
+      // Power switch turned OFF - shut down machine immediately
+      Serial.println(F("[Power] Switch turned OFF - shutting down"));
+      setRelayOutput(false);  // Cut relay
+      setSsrOutput(0);        // Stop heating
+      setPumpOutput(0);       // Stop pump
+      machineShutdown = true;
+      currentState = STATE_SHUTDOWN;
+    } else {
+      // Power switch turned ON - machine will start preheat sequence
+      Serial.println(F("[Power] Switch turned ON - reactivating"));
+      preheatDoneThisSession = false;  // Reset preheat flag
+      setRelayOutput(true);             // Activate relay - machine gets power
+      machineShutdown = false;
+      currentState = STATE_HOME;
+      updateActivityTime();
+    }
+    lastPowerState = newPowerState;
+    return;  // Skip other switch processing if power changed
+  }
+  
+  // Only process brew/steam switches if power is ON
+  if (!powerSwitchOn) {
+    return;  // Ignore brew/steam switches when power is off
+  }
   
   // Track activity when switch changes
   if (newBrewState != brewSwitchOn || newSteamState != steamSwitchOn) {
@@ -354,6 +438,7 @@ void handleEncoderInput() {
   if (delta != 0) {
     lastMenuActivity = millis();
     updateActivityTime();  // Track activity
+    preheatError = false;  // Clear any preheat error on encoder input
     
     // If machine is shutdown, reactivate on encoder input
     if (machineShutdown && currentState == STATE_SHUTDOWN) {
@@ -399,6 +484,7 @@ void handleEncoderInput() {
   // Check encoder button press
   if (isEncoderButtonPressed()) {
     updateActivityTime();  // Track activity
+    preheatError = false;  // Clear any preheat error on button press
     
     if (machineShutdown && currentState == STATE_SHUTDOWN) {
       reactivateMachine();
@@ -434,6 +520,18 @@ void renderDisplay() {
     return;
   }
   
+  // Check if preheat error should be displayed
+  if (preheatError) {
+    unsigned long timeSinceError = millis() - preheatErrorTime;
+    // Auto-clear error after 5 seconds or on any user input
+    if (timeSinceError > 5000) {
+      preheatError = false;
+    } else {
+      displayPreheatError(F("NO WATER DETECTED"));
+      return;
+    }
+  }
+  
   if (currentState == STATE_HOME || currentState == STATE_PORTAFILTER_PREHEAT) {
     // Show home screen, possibly with preheat countdown
     unsigned long preheatCountdown = 0;
@@ -441,7 +539,7 @@ void renderDisplay() {
       unsigned long preheatElapsed = millis() - preheatStartTime;
       preheatCountdown = (PORTAFILTER_PREHEAT_DURATION - preheatElapsed) / 1000;
     }
-    displayHome(currentTemp, brewTemp, pumpStopOnTimeout, preheatCountdown);
+    displayHome(currentTemp, brewTemp, pumpStopOnTimeout, preheatCountdown, powerSwitchOn);
   } else if (currentState == STATE_BREWING_MODE) {
     // Display menu with pressure adjustment options
     MenuState menuState = getCurrentMenuSelection();
@@ -453,7 +551,7 @@ void renderDisplay() {
       displayBrewingMode(pumpStopOnTimeout);
     }
   } else if (currentState == STATE_BREWING) {
-    displayBrewing(currentTemp, brewTemp, currentPressure, 9.0, brewElapsedTime, brewTime, false);
+    displayBrewing(currentTemp, brewTemp, currentPressure, 9.0, brewElapsedTime, brewTime, false, brewEstimatedVolume);
   } else if (currentState == STATE_STEAMING) {
     displaySteamingMode(currentTemp, steamTemp, true);
   }
@@ -478,6 +576,7 @@ void checkInactivityTimeout() {
     currentState = STATE_SHUTDOWN;
     setSsrOutput(0);
     setPumpOutput(0);
+    setRelayOutput(false);  // Cut relay - machine powers down
     
     Serial.println(F("[Inactivity] Machine entering low-power shutdown after 20 minutes"));
     Serial.println(F("[Inactivity] Toggle manual power switch (down then up) to reactivate"));
@@ -497,5 +596,43 @@ void reactivateMachine() {
   
   Serial.println(F("[Reactivation] Machine reactivated - heating enabled"));
   Serial.println(F("[Reactivation] Activity timer reset to 20 minutes"));
+}
+
+// ===== WAKE-UP TIMER =====
+void checkWakeupTimer() {
+  unsigned long currentMillis = millis();
+  
+  // Check if wake-up timer is enabled and time has arrived
+  if (wakeupTimerEnabled && currentMillis >= wakeupTimeMillis) {
+    // Time to wake up!
+    wakeupTimerEnabled = false;  // Disable timer (one-time activation)
+    
+    // Reactivate machine from shutdown if needed
+    if (machineShutdown) {
+      reactivateMachine();
+      Serial.println(F("[WakeUp] Machine activated by wake-up timer!"));
+    } else {
+      // Machine was already on, just make sure heating is active
+      currentState = STATE_HOME;
+      Serial.println(F("[WakeUp] Wake-up timer triggered - machine ready"));
+    }
+  }
+}
+
+// Set wake-up timer (hours from now)
+void setWakeupTimer(byte hoursFromNow) {
+  if (hoursFromNow == 0) {
+    // Disable timer
+    wakeupTimerEnabled = false;
+    Serial.println(F("[WakeUp] Wake-up timer disabled"));
+  } else if (hoursFromNow <= WAKEUP_MAX_HOURS) {
+    // Calculate wake-up time in milliseconds
+    wakeupTimeMillis = millis() + (unsigned long)hoursFromNow * 3600000UL;  // Convert hours to ms
+    wakeupTimerEnabled = true;
+    
+    Serial.print(F("[WakeUp] Timer set for "));
+    Serial.print(hoursFromNow);
+    Serial.println(F(" hour(s) from now"));
+  }
 }
 

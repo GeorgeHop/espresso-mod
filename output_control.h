@@ -16,6 +16,7 @@
 volatile byte ssrValue = 0;
 volatile byte ssrTarget = 0;
 volatile byte pumpValue = 0;
+volatile bool relayActive = false;  // Tracks relay state (HIGH = ON, LOW = OFF)
 volatile float currentBrewPressure = PUMP_DEFAULT_BREW_PRESSURE;
 volatile float currentSteamPressure = PUMP_DEFAULT_STEAM_PRESSURE;
 
@@ -28,9 +29,14 @@ void initOutputControl() {
   pinMode(PUMP_PWM_PIN, OUTPUT);
   digitalWrite(PUMP_PWM_PIN, LOW);
   
+  // Relay control (HIGH = ON, LOW = OFF)
+  pinMode(RELAY_CONTROL_PIN, OUTPUT);
+  digitalWrite(RELAY_CONTROL_PIN, LOW);  // Start with relay OFF
+  relayActive = false;
+  
   currentBrewPressure = PUMP_DEFAULT_BREW_PRESSURE;
   currentSteamPressure = PUMP_DEFAULT_STEAM_PRESSURE;
-  Serial.println(F("[Output Control] Initialized - SSR pin 9, Pump PWM pin A2"));
+  Serial.println(F("[Output Control] Initialized - SSR pin 9, Pump PWM pin A2, Relay pin A4"));
 }
 
 // ===== SSR HEATING CONTROL =====
@@ -107,10 +113,29 @@ void setPumpPercentage(byte percent) {
   setPumpOutput(pwmValue);
 }
 
+// ===== RELAY CONTROL (Power to machine) =====
+// HIGH (5V) = relay energized = machine powered ON
+// LOW (0V) = relay de-energized = machine powered OFF
+void setRelayOutput(bool state) {
+  relayActive = state;
+  digitalWrite(RELAY_CONTROL_PIN, state ? HIGH : LOW);
+  
+  if (state) {
+    Serial.println(F("[Relay] Machine powered ON"));
+  } else {
+    Serial.println(F("[Relay] Machine powered OFF"));
+  }
+}
+
+bool getRelayState() {
+  return relayActive;
+}
+
 // Emergency shutdown - turn off all outputs
 void emergencyShutdown() {
   setSsrOutput(0);
   setPumpOutput(0);
+  setRelayOutput(false);  // Cut power to machine
 }
 
 #endif

@@ -15,11 +15,13 @@
 #define ENCODER_DT_PIN          3    // INT1
 #define ENCODER_SW_PIN          4
 
-// Switches (2 switches we're using)
-#define BREW_SWITCH_PIN         5    // Espresso pump switch (Ulka)
-#define STEAM_SWITCH_PIN        6    // Steam thermoblock switch
+// Switches (3 switches)
+#define POWER_SWITCH_PIN        A3   // Power on/off switch (latching: UP=ON, DOWN=OFF)
+#define BREW_SWITCH_PIN         5    // Espresso pump switch (TODEA latching switch, D5→Arduino, GND)
+#define STEAM_SWITCH_PIN        6    // Steam thermoblock switch (SW312 click button on steam wand, C/NO→D6/GND)
 
 // Outputs
+#define RELAY_CONTROL_PIN       A4   // Relay control (HIGH=ON, LOW=OFF)
 #define SSR_PIN                 9    // SSR for heating element (PWM on Arduino Nano)
 #define PUMP_PWM_PIN            A2   // PWM controller for AC pump (0-5V analog signal)
 
@@ -43,6 +45,11 @@
 #define PRESSURE_MIN_BAR        0.0      // Minimum pressure (bar)
 #define PRESSURE_MAX_BAR        10.0     // Maximum pressure (bar)
 #define PRESSURE_SMOOTHING      8        // Number of samples for averaging
+
+// Pump flow rate calibration (for volume estimation without flow meter)
+// Test: Run pump at 9 bar for 10 seconds into a cup, measure volume in ml, divide by 10
+// Example: 20ml in 10s = 2.0 ml/s
+#define PUMP_FLOW_RATE          2.0      // ml/s at 9 bar nominal pressure (calibrate for your machine)
 
 // ===== CONTROL PARAMETERS =====
 // Temperature control PID
@@ -97,6 +104,11 @@
 #define ACTIVITY_CHECK_INTERVAL 100      // Check activity every 100ms
 #define MACHINE_SHUTDOWN_THRESHOLD 1200000 // Time before full shutdown
 
+// ===== WAKE-UP TIMER (without RTC) =====
+#define WAKEUP_TIMER_ENABLED    0        // 1 = enable wake-up timer, 0 = disabled
+#define WAKEUP_TIMER_DEFAULT    0        // Default: 0 hours (disabled)
+#define WAKEUP_MAX_HOURS        12       // Maximum wake-up time: 12 hours
+
 // ===== PUMP CONTROL (PWM AC220V Controller) =====
 #define PUMP_MIN_VALUE          0        // Minimum pump PWM (0%)
 #define PUMP_MAX_VALUE          255      // Maximum pump PWM (100%)
@@ -111,6 +123,8 @@
 #define PORTAFILTER_PREHEAT_ENABLED 1    // 1 = enabled, 0 = disabled
 #define PORTAFILTER_PREHEAT_DURATION 5000 // Duration in milliseconds (5 seconds)
 #define PORTAFILTER_PREHEAT_PRESSURE 6.0  // Flush pressure (bar) - gentle, not full brewing
+#define WATER_PRESSURE_CHECK_DELAY 1000   // Wait 1 second for pump to build pressure
+#define WATER_PRESSURE_THRESHOLD 2.0      // Minimum pressure to detect water (bar)
 
 // ===== EEPROM SETTINGS (for future persistence) =====
 // These values can be stored in EEPROM and modified through menu

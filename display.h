@@ -33,23 +33,64 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS_PIN, TFT_DC_PIN, TFT_RST_PIN);
 
 // Forward declarations
 void displayInit();
-void displayHome(float currentTemp, float brewTemp, bool pumpStopMode, unsigned long preheatCountdown = 0);
+void displayHome(float currentTemp, float brewTemp, bool pumpStopMode, unsigned long preheatCountdown = 0, bool powerOn = true);
 void displayBrewingMode(bool pumpStopMode);
-void displayBrewing(float currentTemp, float targetTemp, float currentPressure, float targetPressure, unsigned long elapsed, unsigned long total, bool isPreInfusion);
+void displayBrewing(float currentTemp, float targetTemp, float currentPressure, float targetPressure, 
+                    unsigned long elapsed, unsigned long total, bool isPreInfusion, float estimatedVolume = 0.0);
 void displaySteamingMode(float currentTemp, float targetTemp, bool brewActive);
 void displayMenu();
 void displaySteamMode(float currentTemp, float targetTemp);
 void displayPreInfusion(float currentTemp, float targetTemp, float currentPressure, unsigned long elapsed, unsigned long total);
 void displayHeating(float currentTemp, float targetTemp);
 void displayIdle();
+void displayPreheatError(const __FlashStringHelper* errorMessage);
 
 void initDisplay() {
-  // Initialize ST7789 display
-  tft.init(TFT_HEIGHT, TFT_WIDTH);  // 280x240 for portrait mode
-  tft.setRotation(0);  // Portrait orientation
+  // Initialize ST7789 display with explicit SPI setup
+  Serial.println(F("[Display] Starting ST7789V init..."));
+  
+  // Reset display
+  pinMode(TFT_RST_PIN, OUTPUT);
+  digitalWrite(TFT_RST_PIN, HIGH);
+  delay(50);
+  digitalWrite(TFT_RST_PIN, LOW);
+  delay(100);
+  digitalWrite(TFT_RST_PIN, HIGH);
+  delay(150);
+  
+  Serial.println(F("[Display] Reset complete, initializing..."));
+  
+  // Initialize with width, height
+  tft.init(TFT_WIDTH, TFT_HEIGHT);
+  delay(200);
+  
+  // Try all rotations
+  Serial.println(F("[Display] Testing rotations..."));
+  tft.setRotation(0);
+  delay(100);
+  tft.fillScreen(0xF800);  // Red
+  delay(1000);
+  
+  tft.setRotation(1);
+  delay(100);
+  tft.fillScreen(0x07E0);  // Green
+  delay(1000);
+  
+  tft.setRotation(2);
+  delay(100);
+  tft.fillScreen(0x001F);  // Blue
+  delay(1000);
+  
+  tft.setRotation(3);
+  delay(100);
+  tft.fillScreen(0xFFE0);  // Yellow
+  delay(1000);
+  
+  // Set to final rotation
+  tft.setRotation(0);
   tft.fillScreen(TFT_BLACK);
   
-  Serial.println(F("[Display] ST7789V initialized (240x280)"));
+  Serial.println(F("[Display] ST7789V initialized!"));
   displayInit();
 }
 
@@ -71,9 +112,20 @@ void displayInit() {
   tft.fillScreen(TFT_BLACK);
 }
 
-void displayHome(float currentTemp, float brewTemp, bool pumpStopMode, unsigned long preheatCountdown) {
+void displayHome(float currentTemp, float brewTemp, bool pumpStopMode, unsigned long preheatCountdown, bool powerOn) {
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_WHITE);
+  
+  // Power state indicator (top left/right)
+  tft.setTextSize(1);
+  tft.setCursor(210, 5);
+  if (powerOn) {
+    tft.setTextColor(TFT_GREEN);
+    tft.println(F("PWR:ON"));
+  } else {
+    tft.setTextColor(TFT_RED);
+    tft.println(F("PWR:OFF"));
+  }
   
   // Title
   tft.setTextSize(2);
@@ -186,7 +238,8 @@ void displayBrewingMode(bool pumpStopMode) {
 }
 
 void displayBrewing(float currentTemp, float targetTemp, float currentPressure, 
-                    float targetPressure, unsigned long elapsed, unsigned long total, bool isPreInfusion) {
+                    float targetPressure, unsigned long elapsed, unsigned long total, bool isPreInfusion, 
+                    float estimatedVolume = 0.0) {
   tft.fillScreen(TFT_BLACK);
   
   // Title
@@ -214,7 +267,7 @@ void displayBrewing(float currentTemp, float targetTemp, float currentPressure,
   tft.print(targetPressure, 1);
   tft.println(F(" bar"));
   
-  // Time display (large)
+  // Time and Volume display (large)
   tft.setTextSize(3);
   tft.setCursor(40, 110);
   tft.setTextColor(TFT_YELLOW);
@@ -228,8 +281,15 @@ void displayBrewing(float currentTemp, float targetTemp, float currentPressure,
   tft.print(total);
   tft.println(F("s"));
   
+  // Volume display (estimated)
+  tft.setCursor(10, 145);
+  tft.setTextColor(TFT_CYAN);
+  tft.print(F("Vol: "));
+  tft.print(estimatedVolume, 1);
+  tft.println(F("ml"));
+  
   // Progress bar
-  tft.setCursor(10, 160);
+  tft.setCursor(10, 170);
   int percent = (elapsed * 100) / max(total, 1UL);
   int barWidth = (percent * 18) / 100;
   tft.print(F("["));
@@ -241,10 +301,10 @@ void displayBrewing(float currentTemp, float targetTemp, float currentPressure,
   tft.println(F("%"));
   
   // Status
-  tft.setCursor(20, 200);
+  tft.setCursor(20, 210);
   tft.setTextColor(TFT_GREEN);
   tft.println(F("Extraction Active"));
-  tft.setCursor(10, 220);
+  tft.setCursor(10, 230);
   tft.setTextColor(TFT_CYAN);
   tft.println(F("Release switch to stop"));
 }
@@ -477,6 +537,46 @@ void displayBrewPressureMenu(float brewPressure, bool editing) {
     tft.setCursor(10, 235);
     tft.println(F("Rotate to navigate"));
   }
+}
+
+void displayPreheatError(const __FlashStringHelper* errorMessage) {
+  tft.fillScreen(TFT_BLACK);
+  
+  // Error title
+  tft.setTextSize(3);
+  tft.setCursor(30, 20);
+  tft.setTextColor(TFT_RED);
+  tft.println(F("ERROR"));
+  
+  // Error icon/separator
+  tft.setTextSize(1);
+  tft.setCursor(50, 70);
+  tft.setTextColor(TFT_YELLOW);
+  tft.println(F("====================="));
+  
+  // Error message
+  tft.setTextSize(2);
+  tft.setCursor(15, 100);
+  tft.setTextColor(TFT_WHITE);
+  tft.println(errorMessage);
+  
+  // Additional info
+  tft.setTextSize(1);
+  tft.setCursor(15, 160);
+  tft.setTextColor(TFT_ORANGE);
+  tft.println(F("Preheat aborted"));
+  
+  tft.setCursor(15, 180);
+  tft.setTextColor(TFT_CYAN);
+  tft.println(F("Check:"));
+  tft.setCursor(15, 195);
+  tft.println(F("- Water tank full?"));
+  tft.setCursor(15, 210);
+  tft.println(F("- Pump connected?"));
+  
+  tft.setCursor(15, 240);
+  tft.setTextColor(TFT_GREEN);
+  tft.println(F("Rotate to continue"));
 }
 
 #endif
