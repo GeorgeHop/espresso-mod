@@ -76,6 +76,7 @@ This project is provided for educational purposes and as-is without any liabilit
 
 ---
 
+## Hardware Requirements
 - **Temperature Control**: MAX6675 K-type thermocouple for precise temperature monitoring
 - **Pressure Monitoring**: Analog pressure sensor for pump pressure measurement
 - **Pump Control**: PWM AC220V controller for smooth pump speed adjustment
@@ -88,8 +89,6 @@ This project is provided for educational purposes and as-is without any liabilit
   - Activity is detected when user makes any changes (encoder, switches)
   - To reactivate: toggle manual power switch (down then up)
   - Activity timer resets on each user interaction
-
-## Hardware Requirements
 
 ### Microcontroller
 - Arduino Nano (ATmega328P)
