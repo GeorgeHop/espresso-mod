@@ -450,7 +450,7 @@ See LICENSE file for details
 
 ## Author
 
-**George Mac** - ESP espresso machine enthusiast building open-source espresso control systems with Claude AI
+**George** - ESP espresso machine enthusiast building open-source espresso control systems with Claude AI
 
 ---
 
